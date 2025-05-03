@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Locked YouTube Video Player</title>
+  <style>
+    #player-container {
+      width: 640px;
+      height: 390px;
+      position: relative;
+      margin-top: 20px;
+    }
+    iframe {
+      pointer-events: none; /* Prevents seeking or interacting */
+    }
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 640px;
+      height: 390px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>YouTube Locked Player</h2>
+  <input type="text" id="youtubeUrl" placeholder="Paste YouTube URL here" size="50">
+  <button onclick="loadVideo()">Play</button>
+
+  <div id="player-container">
+    <!-- Player and overlay will load here -->
+  </div>
+
+  <script>
+    let player;
+    let lastTime = 0;
+    let apiLoaded = false;
+
+    // Block keyboard shortcuts
+    document.addEventListener('keydown', function(event) {
+      if (["Tab", " ", "k", "j", "l", "ArrowLeft", "ArrowRight", "Escape"].includes(event.key)) {
+        event.preventDefault();
+      }
+    });
+
+    // Block right-click
+    document.addEventListener('contextmenu', function(event) {
+      event.preventDefault();
+    });
+
+    // Warn if user leaves the tab
+    document.addEventListener("visibilitychange", function() {
+      if (document.hidden) {
+        alert("Please stay on the video tab.");
+      }
+    });
+
+    function extractVideoId(url) {
+      const regex = /(?:v=|\/)([0-9A-Za-z_-]{11}).*/;
+      const match = url.match(regex);
+      return match ? match[1] : null;
+    }
+
+    function loadVideo() {
+      const url = document.getElementById("youtubeUrl").value;
+      const videoId = extractVideoId(url);
+
+      if (!videoId) {
+        alert("Invalid YouTube URL");
+        return;
+      }
+
+      document.getElementById("player-container").innerHTML = ` 
+        <iframe id="player" width="640" height="390"
+          src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&controls=1&disablekb=1&modestbranding=1"
+          frameborder="0" allow="autoplay; fullscreen" allowfullscreen disablepictureinpicture></iframe>
+        <div id="overlay"></div>
+      `;
+
+      if (!apiLoaded) {
+        let tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        let firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        apiLoaded = true;
+      } else {
+        onYouTubeIframeAPIReady(); // reload player if API already loaded
+      }
+    }
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange
+        }
+      });
+    }
+
+    function onPlayerReady(event) {
+      event.target.setPlaybackQuality('hd720');
+      event.target.setPlaybackRate(1.5); // Set playback speed to 1.5x
+      event.target.playVideo();
+      monitorPlayback();
+      enterFullscreen();
+    }
+
+    function onPlayerStateChange(event) {
+      // Optional: block pause here if needed
+      if (event.data === YT.PlayerState.PLAYING) {
+        monitorPlayback();
+      }
+    }
+
+    function monitorPlayback() {
+      setInterval(() => {
+        if (player && player.getCurrentTime) {
+          let currentTime = player.getCurrentTime();
+          player.setPlaybackQuality('hd720');
+
+          if (currentTime > lastTime + 1.5) {
+            player.seekTo(lastTime, true); // block skipping
+          } else {
+            lastTime = currentTime;
+          }
+        }
+      }, 1000);
+    }
+
+    function enterFullscreen() {
+      const iframe = document.getElementById('player');
+      if (iframe.requestFullscreen) {
+        iframe.requestFullscreen();
+      } else if (iframe.mozRequestFullScreen) {
+        iframe.mozRequestFullScreen();
+      } else if (iframe.webkitRequestFullscreen) {
+        iframe.webkitRequestFullscreen();
+      } else if (iframe.msRequestFullscreen) {
+        iframe.msRequestFullscreen();
+      }
+    }
+  </script>
+
+</body>
+</html>
